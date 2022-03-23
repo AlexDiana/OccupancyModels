@@ -138,7 +138,9 @@ runModel <- function(data, index_year, index_site,
                      prior_psi = .5, sigma_psi = 2,
                      prior_p = .5, sigma_p = 2, 
                      usingYearDetProb = F,
-                     usingSpatial = F, gridStep,
+                     usingSpatial = F, 
+                     spatialApprox = "SoD", maxPoints = 10,
+                     gridStep,
                      storeRE = F, nchain, nburn, niter, 
                      verbose = T, computeGOF = T){
   
@@ -205,28 +207,60 @@ runModel <- function(data, index_year, index_site,
           X_sp <- X_psi$X_sp
           Y_sp <- X_psi$Y_sp
           
-          uniqueIndexesSite <- which(!duplicated(X_psi$Site))
-          X_sp_unique <- X_sp[uniqueIndexesSite]
-          Y_sp_unique <- Y_sp[uniqueIndexesSite]
-          XY_sp_unique <- cbind(X_sp_unique, Y_sp_unique)
+          if(spatialApprox == "SoD"){
+            
+            uniqueIndexesSite <- which(!duplicated(X_psi$Site))
+            X_sp_unique <- X_sp[uniqueIndexesSite]
+            Y_sp_unique <- Y_sp[uniqueIndexesSite]
+            XY_sp_unique <- cbind(X_sp_unique, Y_sp_unique)
+            
+            # build the grid
+            X_tilde <- as.matrix(buildGrid(XY_sp_unique, gridStep))
+            XY_centers <- findClosestPoint(XY_sp_unique, X_tilde)
+            
+            # get rid of unused cells by refinding the grid
+            X_tilde <- X_tilde[sort(unique(XY_centers)),]
+            
+            # refit
+            XY_centers <- findClosestPoint(cbind(X_psi$X_sp,X_psi$Y_sp), X_tilde)
+            XY_centers_unique <- findClosestPoint(XY_sp_unique, X_tilde)
+            
+            X_psi$Center <- as.factor(XY_centers)
+            X_s_index <- XY_centers
+            
+            X_psi_s <- stats::model.matrix( ~ . - 1, data = X_psi[,c("Center"),drop = F])
+            
+            X_centers <- nrow(X_tilde)
+            
+          } else if(spatialApprox == "SoR") {
+            
+            uniqueIndexesSite <- which(!duplicated(X_psi$Site))
+            X_sp_unique <- X_sp[uniqueIndexesSite]
+            Y_sp_unique <- Y_sp[uniqueIndexesSite]
+            XY_sp_unique <- cbind(X_sp_unique, Y_sp_unique)
+            
+            # build the grid
+            
+            X_tilde <- as.matrix(buildGrid(XY_sp_unique, gridStep))
+            XY_centers <- findClosestPoint(XY_sp_unique, X_tilde)
+            
+            # get rid of unused cells by refinding the grid
+            X_tilde <- X_tilde[sort(unique(XY_centers)),]
+            
+            # refit
+            XY_centers <- findClosestPoint(cbind(X_psi$X_sp,X_psi$Y_sp), X_tilde)
+            XY_centers_unique <- findClosestPoint(XY_sp_unique, X_tilde)
+            
+            X_psi$Center <- as.factor(XY_centers)
+            X_s_index <- XY_centers
+            
+            X_psi_s <- stats::model.matrix( ~ . - 1, data = X_psi[,c("Center"),drop = F])
+            
+            X_centers <- nrow(X_tilde)
+            
+          }
           
-          # build the grid
-          X_tilde <- as.matrix(buildGrid(XY_sp_unique, gridStep))
-          XY_centers <- findClosestPoint(XY_sp_unique, X_tilde)
           
-          # get rid of unused cells by refinding the grid
-          X_tilde <- X_tilde[sort(unique(XY_centers)),]
-          
-          # refit
-          XY_centers <- findClosestPoint(cbind(X_psi$X_sp,X_psi$Y_sp), X_tilde)
-          XY_centers_unique <- findClosestPoint(XY_sp_unique, X_tilde)
-          
-          X_psi$Center <- as.factor(XY_centers)
-          X_s_index <- XY_centers
-          
-          X_psi_s <- stats::model.matrix( ~ . - 1, data = X_psi[,c("Center"),drop = F])
-          
-          X_centers <- nrow(X_tilde)
           
         } else {
           X_centers <- 0
@@ -380,44 +414,10 @@ runModel <- function(data, index_year, index_site,
       sd_sigma_T <- .2 
     }
     
-    sigma_s <- b_sigma_s / (a_sigma_s - 1)
-    sigma_T <- b_sigma_T / (a_sigma_T - 1)
-    
-    l_T <- a_l_T / b_l_T
-    l_s <- a_l_s / b_l_s
-    
     mu_psi <- invLogit(prior_psi)
     mu_p <- invLogit(prior_p)
     
-    # priors on psi
-    
-    {
-      
-      b_psi <- c(rep(mu_psi,Y), rep(0, ncol(X_psi) - Y))
-      B_psi <- matrix(0, nrow = ncol(X_psi), ncol = ncol(X_psi))
-      
-      C <- matrix(0, nrow = Y + X_centers, ncol = Y + X_centers)
-      C[1:Y, 1:Y] <- K(1:Y,1:Y, sigma_T^2, l_T) + sigma_psi^2
-      if(usingSpatial){
-        C[Y + 1:X_centers, Y + 1:X_centers] <- K2(X_tilde,X_tilde, sigma_s^2, l_s)  
-      }
-      
-      B_psi[1:(Y + X_centers), 1:(Y + X_centers)] <- C
-      
-      B_psi[Y + X_centers + seq_len(numTimeSpaceCov), 
-            Y + X_centers + seq_len(numTimeSpaceCov)] <- diag(phi_psi^2, nrow = numTimeSpaceCov)
-      
-      if(ncov_psi > 0){
-        
-        C_covs <- diag(phi_psi^2, nrow = ncov_psi)
-        
-        B_psi[(Y + X_centers) + numTimeSpaceCov + 1:ncov_psi,
-              (Y + X_centers) + numTimeSpaceCov + 1:ncov_psi] <- C_covs
-        
-      } 
-      
-      inv_B_psi <- solve(B_psi)
-    }
+    b_psi <- c(rep(mu_psi,Y), rep(0, ncol(X_psi) - Y))
     
     # prior on p
     
@@ -509,33 +509,68 @@ runModel <- function(data, index_year, index_site,
         
         # hyperparameters
         {
+          sigma_s <- b_sigma_s / (a_sigma_s - 1)
+          sigma_T <- b_sigma_T / (a_sigma_T - 1)
+
           l_T <- a_l_T / b_l_T
           l_s <- a_l_s / b_l_s
-          
-          sigma_T <- b_sigma_T / (a_sigma_T - 1)
-          sigma_s <- b_sigma_s / (a_sigma_s - 1)
           
           sigma_eps <- b_sigma_eps / (a_sigma_eps - 1)
           
           # precompute parameters to update l_s
           if(usingSpatial){
             
-            length_grid_ls <- 20
+            length_grid_ls <- 5
             l_s_grid <- seq(0.01, 0.5, length.out = length_grid_ls)
+            index_ls <- floor(length_grid_ls / 2)
+            l_s <- l_s_grid[index_ls]
+            
             K_s_grid <- array(NA, dim = c(X_centers, X_centers, length_grid_ls))
             inv_K_s_grid <- array(NA, dim = c(X_centers, X_centers, length_grid_ls))
             diag_K_s_grid <- array(NA, dim = c(X_centers, length_grid_ls))
             inv_chol_K_s_grid <- array(NA, dim = c(X_centers, X_centers, length_grid_ls))
             
             for (j in 1:length_grid_ls) {
-              l_s <- l_s_grid[j]
-              K_s_grid[,,j] <- K_l <- K2(X_tilde, X_tilde, 1, l_s) + diag(exp(-10), nrow = nrow(X_tilde))
+              l_s_current <- l_s_grid[j]
+              K_s_grid[,,j] <- K_l <- K2(X_tilde, X_tilde, 1, l_s_current) + diag(exp(-10), nrow = nrow(X_tilde))
               diag_K_s_grid[,j] <- FastGP::rcppeigen_get_diag(K_s_grid[,,j])
               inv_K_s_grid[,,j] <- FastGP::rcppeigen_invert_matrix(K_s_grid[,,j])
               inv_chol_K_s_grid[,,j] <- FastGP::rcppeigen_invert_matrix(FastGP::rcppeigen_get_chol(K_s_grid[,,j]))
             }  
             
-            l_s <- l_s_grid[length_grid_ls / 2]
+            if(spatialApprox == "SoR"){
+              
+              X_s_index_all <- array(NA, c(nrow(X_psi), maxPoints, length_grid_ls))
+              K_staruKu_all <- array(NA, dim = c(nrow(X_psi), nrow(X_tilde), length_grid_ls))
+              
+              for (i in seq_along(l_s_grid)) {
+                
+                print(paste0("Precomputing covariance matrix ",i," out of ",length_grid_ls))
+                
+                K_staru <- K2(cbind(X_sp,Y_sp), X_tilde, 1, l_s_grid[i])
+                inv_K_uu <- solve(K2(X_tilde, X_tilde, 1, l_s_grid[i]) + 
+                                    diag(exp(-10), nrow = nrow(X_tilde)))
+                K_staruKu_all[,,i] <- K_staru %*% inv_K_uu
+                
+                K_biggest <- apply(K_staruKu_all[,,i], 1, function(x){
+                  -sort(-x)[1:maxPoints]
+                })
+                
+                which_K_biggest <- apply(K_staruKu_all[,,i], 1, function(x){
+                  order(-x)[1:maxPoints]
+                })
+                
+                X_s_index_all[,,i] <- t(which_K_biggest)
+                # for (j in 1:nrow(X_psi)) {
+                #   K_staruKu_all[j,-X_s_index_all[j,,i],i] <- 0
+                #   K_staruKu_all[j,,i] <- K_staruKu_all[j,,i] / sum(K_staruKu_all[j,,i])
+                # }
+                
+              }
+              
+              X_psi[,Y + seq_len(X_centers)] <- K_staruKu_all[,,index_ls]
+              
+            } 
             
           } else {
             l_s_grid <- NULL
@@ -546,6 +581,38 @@ runModel <- function(data, index_year, index_site,
           }
           
         }
+        
+        
+        # priors on psi
+        
+        {
+          
+          
+          B_psi <- matrix(0, nrow = ncol(X_psi), ncol = ncol(X_psi))
+          
+          C <- matrix(0, nrow = Y + X_centers, ncol = Y + X_centers)
+          C[1:Y, 1:Y] <- K(1:Y,1:Y, sigma_T^2, l_T) + sigma_psi^2
+          if(usingSpatial){
+            C[Y + 1:X_centers, Y + 1:X_centers] <- K2(X_tilde,X_tilde, sigma_s^2, l_s)  
+          }
+          
+          B_psi[1:(Y + X_centers), 1:(Y + X_centers)] <- C
+          
+          B_psi[Y + X_centers + seq_len(numTimeSpaceCov), 
+                Y + X_centers + seq_len(numTimeSpaceCov)] <- diag(phi_psi^2, nrow = numTimeSpaceCov)
+          
+          if(ncov_psi > 0){
+            
+            C_covs <- diag(phi_psi^2, nrow = ncov_psi)
+            
+            B_psi[(Y + X_centers) + numTimeSpaceCov + 1:ncov_psi,
+                  (Y + X_centers) + numTimeSpaceCov + 1:ncov_psi] <- C_covs
+            
+          } 
+          
+          inv_B_psi <- solve(B_psi)
+        }
+        
         
       }
       
@@ -558,6 +625,7 @@ runModel <- function(data, index_year, index_site,
             print(paste0("Chain = ",chain," - Iteration = ",iter - nburn))
           }  
         }
+        print(max(beta_psi))
         # print(paste0("l_s = ",l_s," / sigma_s = ",sigma_s,
         #              " / max(beta_psi) = ",max(abs(beta_psi[Y  + 1:X_centers]))))
         
@@ -568,11 +636,32 @@ runModel <- function(data, index_year, index_site,
         
         # sample psi ----
         
+        if (usingSpatial) {
+          
+          if(spatialApprox == "SoD"){
+            
+            X_s_index_current <- X_s_index
+            
+          } else if(spatialApprox == "SoR"){
+            
+            X_s_index_current <- X_s_index_all[,,index_ls]
+            X_psi[,Y + seq_len(X_centers)] <- K_staruKu_all[,,index_ls]
+            
+          }
+          
+        } else {
+          
+          X_s_index_current <- X_s_index
+          
+        }
+        
         list_psi <- update_psi(beta_psi, X_psi, Xbetapsi,
                                b_psi, inv_B_psi, 
                                z, k_s, sites, Y, X_centers, ncov_psi, 
-                               X_y_index, X_s_index, numTimeSpaceCov,
-                               usingSpatial, eps_s, sigma_eps)
+                               X_y_index,  
+                               X_s_index_current,
+                               numTimeSpaceCov,
+                               usingSpatial, spatialApprox, eps_s, sigma_eps)
         psi <- list_psi$psi
         beta_psi <- list_psi$beta
         Omega <- list_psi$Omega
@@ -584,26 +673,26 @@ runModel <- function(data, index_year, index_site,
         
         # sample hyperparameters ---------
         
-        list_hyperparameters <- update_hyperparameters(l_T, a_l_T, b_l_T, sd_l_T, sd_sigma_T,
-                                                       sigma_T, a_sigma_T, b_sigma_T, Y,
-                                                       beta_psi, inv_B_psi, 
-                                                       b_psi, sigma_psi,
-                                                       l_s_grid, K_s_grid, inv_K_s_grid, 
-                                                       inv_chol_K_s_grid, diag_K_s_grid,
-                                                       a_l_s, b_l_s, 
-                                                       sigma_s, a_sigma_s, b_sigma_s, X_tilde,
-                                                       a_sigma_eps, b_sigma_eps,
-                                                       usingSpatial, 
-                                                       XbetaY, Xbetas, Xbeta_cov,
-                                                       eps_s, k_s, 
-                                                       z, X_psi, Omega, X_y_index)
-        l_T <- list_hyperparameters$l_T
-        sigma_T <- list_hyperparameters$sigma_T
-        sigma_s <- list_hyperparameters$sigma_s
-        l_s <- list_hyperparameters$l_s
-        index_l_s <- list_hyperparameters$index_l_s
-        inv_B_psi <- list_hyperparameters$inv_B_psi
-        sigma_eps <- list_hyperparameters$sigma_eps
+        # list_hyperparameters <- update_hyperparameters(l_T, a_l_T, b_l_T, sd_l_T, sd_sigma_T,
+        #                                                sigma_T, a_sigma_T, b_sigma_T, Y,
+        #                                                beta_psi, inv_B_psi,
+        #                                                b_psi, sigma_psi,
+        #                                                l_s_grid, K_s_grid, inv_K_s_grid,
+        #                                                inv_chol_K_s_grid, diag_K_s_grid,
+        #                                                a_l_s, b_l_s,
+        #                                                sigma_s, a_sigma_s, b_sigma_s, X_tilde,
+        #                                                a_sigma_eps, b_sigma_eps,
+        #                                                usingSpatial,
+        #                                                XbetaY, Xbetas, Xbeta_cov,
+        #                                                eps_s, k_s,
+        #                                                z, X_psi, Omega, X_y_index)
+        # l_T <- list_hyperparameters$l_T
+        # sigma_T <- list_hyperparameters$sigma_T
+        # sigma_s <- list_hyperparameters$sigma_s
+        # l_s <- list_hyperparameters$l_s
+        # index_l_s <- list_hyperparameters$index_l_s
+        # inv_B_psi <- list_hyperparameters$inv_B_psi
+        # sigma_eps <- list_hyperparameters$sigma_eps
         
         # sample p ----------------
         
@@ -624,15 +713,21 @@ runModel <- function(data, index_year, index_site,
           eps_unique <- eps_s[indexUniqueSite]
           
           if(usingSpatial){
-            a_s_unique <- beta_psi[Y + XY_centers_unique] + 
+            a_s_unique <- Xbetas[indexUniqueSite] + 
               eps_unique
+            
             psi_mean_output[chain,iter - nburn,] <- computeYearEffect(Y, a_s_unique, beta_psi)  
           } else {
             psi_mean_output[chain,iter - nburn,] <- logit(beta_psi[1:Y]) + mean(eps_unique)
           }
           
           if(storeRE){
-            eps_unique_output[chain, iter - nburn,] <- eps_s[indexUniqueSite]
+            if(usingSpatial){
+              eps_unique_output[chain, iter - nburn,] <- Xbetas[indexUniqueSite] + eps_s[indexUniqueSite]  
+            } else {
+              eps_unique_output[chain, iter - nburn,] <- eps_s[indexUniqueSite]  
+            }
+            
           } else {
             eps_unique_output[chain,] <- eps_unique_output[chain,] + 
               (1 / niter)  * eps_s[indexUniqueSite] 

@@ -3,16 +3,16 @@ load(here("Data/Simulated","simdata.rda"))
 # years effect
 {
   
-  years <- modelResults$dataCharacteristics$Years
+  years <- modelResults_MCMC$dataCharacteristics$Years
   Y <- length(years)
-  X_tilde <- modelResults$dataCharacteristics$X_tilde
+  X_tilde <- modelResults_MCMC$dataCharacteristics$X_tilde
   if(usingSpatial){
     X_centers <- nrow(X_tilde)  
   } else {
     X_centers <- 0
   }
   
-  beta_psi_output <- modelResults$modelOutput$beta_psi_output
+  beta_psi_output <- modelResults_MCMC$modelOutput$beta_psi_output
   beta_psi_output <- apply(beta_psi_output, 3, c)
   # beta_psi_output <- beta_psi_output[1,,]
   if(!usingSpatial){
@@ -61,14 +61,14 @@ load(here("Data/Simulated","simdata.rda"))
 
 # spatial site patches
 {
-  X_tilde <- modelResults$dataCharacteristics$X_tilde
+  X_tilde <- modelResults_MCMC$dataCharacteristics$X_tilde
   X_centers <- nrow(X_tilde)
   
-  years <- modelResults$dataCharacteristics$Years
+  years <- modelResults_MCMC$dataCharacteristics$Years
   Y <- length(years)
   
-  eps_unique_output <- modelResults$modelOutput$eps_unique_output
-  beta_psi_output <- modelResults$modelOutput$beta_psi_output
+  eps_unique_output <- modelResults_MCMC$modelOutput$eps_unique_output
+  beta_psi_output <- modelResults_MCMC$modelOutput$beta_psi_output
   
   eps_unique_output <- apply(eps_unique_output, 2, c)
   beta_psi_output <- apply(beta_psi_output, 3, c)
@@ -222,17 +222,16 @@ load(here("Data/Simulated","simdata.rda"))
 
 # spatial site effect 
 {
-  gridStep <- modelResults$dataCharacteristics$gridStep
+  gridStep <- modelResults_MCMC$dataCharacteristics$gridStep
   
-  X_tilde <- modelResults$dataCharacteristics$X_tilde
-  X_tilde_as <- modelResults$dataCharacteristics$X_tilde_as
+  X_tilde <- modelResults_MCMC$dataCharacteristics$X_tilde
+  X_tilde_as <- modelResults_MCMC$dataCharacteristics$X_tilde_as
   X_centers <- nrow(X_tilde)
   
-  years <- modelResults$dataCharacteristics$Years
+  years <- modelResults_MCMC$dataCharacteristics$Years
   Y <- length(years)
   
-  beta_psi_output <- modelResults$beta_psi_output
-  
+  beta_psi_output <- modelResults_MCMC$modelOutput$beta_psi_output
   beta_psi_output <- apply(beta_psi_output, 3, c)
   
   X_sp <- data$X1

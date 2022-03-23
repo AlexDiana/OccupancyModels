@@ -12,7 +12,7 @@ sapply(r_functions, function(x) {
 # simulate data -----------------------------------------------------------
 
 Y <- 10 # years
-S_years <- rep(1000, Y)#floor(seq(2000, 2000, length.out = Y)) 
+S_years <- rep(500, Y)#floor(seq(2000, 2000, length.out = Y)) 
 V_lambda <- 2 # number of visits
 
 X <- expand.grid(seq(0, 1, length.out = sqrt(S_years[1])),
@@ -56,16 +56,16 @@ a_s_site_true <- a_s_site_true - mean(a_s_site_true)
 
 # plot effects
 {
-  # ggplot() + 
-  #   geom_point(data = NULL, aes(x = X[,1],
-  #                               y = X[,2], alpha = a_s_site_true), size = 1) +
-  #   xlab("X") + ylab("Y") + 
-  #   theme(plot.title = element_text(hjust = 0.5, size = 20),
-  #         # legend.position = "none",
-  #         axis.title = element_text(size = 20, face = "bold"),
-  #         axis.text = element_text(size = 13, face = "bold", angle = 90),
-  #         # panel.grid.major = element_line(colour="grey", size=0.015),
-  #         panel.background = element_rect(fill = "white", color = "black"))
+  ggplot() +
+    geom_point(data = NULL, aes(x = X[,1],
+                                y = X[,2], alpha = a_s_site_true), size = 3, shape = 15) +
+    xlab("X") + ylab("Y") +
+    theme(plot.title = element_text(hjust = 0.5, size = 20),
+          # legend.position = "none",
+          axis.title = element_text(size = 20, face = "bold"),
+          axis.text = element_text(size = 13, face = "bold", angle = 90),
+          # panel.grid.major = element_line(colour="grey", size=0.015),
+          panel.background = element_rect(fill = "white", color = "black"))
 }
 
 simulatedData <- simulateData(Y, S_years, V_lambda,
@@ -84,10 +84,6 @@ if(length(beta_p_true) > 0){
 }
 
 setwd(here("Data/Simulated"))
-
-# write.csv(simulatedData, file = paste0("simdata_",S_years[1],"sites.csv"), row.names = F)
-# save(mu_psi_true, beta_psi_true, b_t_true, mu_p_true, a_s_site_true,
-# beta_p_true, X, file = paste0("simdata_",S_years[1],"sites.rda"))
 
 write.csv(simulatedData, file = "simdata.csv", row.names = F)
 save(mu_psi_true, beta_psi_true, b_t_true, mu_p_true, a_s_site_true,

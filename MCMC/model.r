@@ -10,7 +10,7 @@ sapply(r_functions, function(x) {
   source(here("MCMC/Functions",x))
 })
 
-# true data ----------
+#  data ----------
 
 realData <- F
 
@@ -121,12 +121,15 @@ realData <- F
 # mcmc parameter
 {
   nchain <- 1
-  nburn <- 2000#15000
-  niter <- 2000#20000
+  nburn <- 2500#15000
+  niter <- 2500#20000
 }
 
 usingSpatial <- F
-usingYearDetProb <- T
+usingYearDetProb <- F
+spatialApprox <- ""
+maxPoints <- 5
+storeRE <- F
 
 st1 <- Sys.time()
 modelResults_MCMC <- runModel(data, 
@@ -143,8 +146,10 @@ modelResults_MCMC <- runModel(data,
                          sigma_p, 
                          usingYearDetProb,
                          usingSpatial,
+                         spatialApprox,
+                         maxPoints,
                          gridStep, # width of the spatial grid
-                         storeRE = T,
+                         storeRE = F,
                          nchain, # number of chains
                          nburn, # burn-in iterations
                          niter) # number of iterations

@@ -246,6 +246,7 @@ double rpg(int n, double z){
   return(x);
 }
 
+// [[Rcpp::export]]
 arma::vec samplePGvariables(arma::vec &Xbeta, arma::vec &n){
   
   int nsize = n.size();
@@ -262,8 +263,9 @@ arma::vec samplePGvariables(arma::vec &Xbeta, arma::vec &n){
 
 ///////////////  SAMPLE BETA PSI
 
+// [[Rcpp::export]]
 arma::mat tXtOmegaX_betapsi(arma::mat &X, int Y, int X_centers, int ncov_psi, arma::vec Omega,
-                                IntegerVector X_y_index, IntegerVector X_s_index){
+                            IntegerVector X_y_index, IntegerVector X_s_index){
   
   arma::mat XtOmegaX2 = arma::zeros(X.n_cols, X.n_cols);
   
@@ -364,8 +366,8 @@ arma::mat tXtOmegaX_betapsi(arma::mat &X, int Y, int X_centers, int ncov_psi, ar
 }
 
 arma::vec XtransposeK_betapsi(arma::mat &X, IntegerVector X_y_index, 
-                          IntegerVector X_s_index, arma::vec &k, 
-                          int Y, int centers, int ncov){
+                              IntegerVector X_s_index, arma::vec &k, 
+                              int Y, int centers, int ncov){
   
   
   arma::vec Xk = arma::zeros(X.n_cols);
@@ -384,9 +386,9 @@ arma::vec XtransposeK_betapsi(arma::mat &X, IntegerVector X_y_index,
 }
 
 arma::vec sampleBetaCoef_betapsi(arma::mat &X, arma::mat &invB, arma::vec &b, 
-                                      arma::vec &k, arma::mat XtOmegaX,
-                                      IntegerVector X_y_index, IntegerVector X_s_index,
-                                      int Y, int centers, int ncov){
+                                 arma::vec &k, arma::mat XtOmegaX,
+                                 IntegerVector X_y_index, IntegerVector X_s_index,
+                                 int Y, int centers, int ncov){
   
   // arma::mat tX = arma::trans(X);
   
@@ -429,22 +431,291 @@ List sampleBetaPsi(arma::vec beta,
   arma::vec Omega = samplePGvariables(Xbetaas, n);
   
   arma::mat XtOmegaX = tXtOmegaX_betapsi(X, Y, X_centers, numTimeSpaceCov + ncov_psi, Omega,
-                                             X_y_index, X_s_index);
+                                         X_y_index, X_s_index);
   
   arma::vec knew = k - Omega % a_s;
   
   arma::vec betaout = sampleBetaCoef_betapsi(X, invB, b, knew, XtOmegaX,
-                                                  X_y_index, X_s_index, Y, X_centers, 
-                                                  numTimeSpaceCov + ncov_psi);
+                                             X_y_index, X_s_index, Y, X_centers, 
+                                             numTimeSpaceCov + ncov_psi);
   
   return(List::create(_["beta"] = betaout,
                       _["Omega"] = Omega));
 }
 
+/// SAMPLE BETA PSI SUBSET OF REGRESSOR 
+
+// [[Rcpp::export]]
+arma::mat matrixProductXtOmegaX_SoR(arma::mat &X, int Y, int X_centers, int ncov_psi, 
+                                    arma::vec Omega,
+                                    IntegerVector X_y_index, arma::mat X_s_index){
+  
+  arma::mat XtOmegaX2 = arma::zeros(X.n_cols, X.n_cols);
+  
+  int maxPoints = X_s_index.n_cols;
+  
+  // year covariates times year covariates
+  for (int i = 0; (unsigned)i < X_y_index.size(); i++){
+    
+    XtOmegaX2(X_y_index[i] - 1, X_y_index[i] - 1) += Omega[i];
+    
+  }
+  
+  // spatial  covariates times spatial covariates
+  for(int l = 0; l < maxPoints; l++){
+    
+    for(int l2 = 0; l2 < maxPoints; l2++){
+      
+      for (int i = 0; (unsigned)i < Omega.size(); i++){
+        
+        XtOmegaX2(Y + X_s_index(i,l) - 1, Y + X_s_index(i,l2) - 1) += X(i, Y + X_s_index(i, l) - 1) *
+          Omega[i] * X(i, Y + X_s_index(i, l2) - 1);
+        
+      }
+      
+      // XtOmegaX2(Y + X_s_index[i,l2] - 1, Y + X_s_index[i,l] - 1) =
+      // XtOmegaX2(Y + X_s_index[i,l] - 1, Y + X_s_index[i,l2] - 1);
+      
+    }
+    
+  }
+  
+  // year covariates times standard covariates
+  for (int i = 0; (unsigned)i < X_y_index.size(); i++){
+    
+    for(int j = 0; j < ncov_psi; j++){
+      
+      XtOmegaX2(Y + X_centers + j, X_y_index[i] - 1) +=  X(i, Y + X_centers + j) * Omega[i];
+      
+    }
+  }
+  
+  for (int i = 1; i <= Y; i++) {
+    
+    for (int j = 0; j < ncov_psi; j++){
+      XtOmegaX2(i - 1, Y + X_centers + j) = XtOmegaX2(Y + X_centers + j, i - 1);
+    }
+    
+  }
+  
+  // spatial  covariates times year covariates
+  for (int i = 0; (unsigned)i < Omega.size(); i++){
+    
+    for(int l = 0; l < maxPoints; l++){
+      
+      XtOmegaX2(X_y_index[i] - 1, Y + X_s_index(i,l) - 1) += X(i, Y + X_s_index(i,l) - 1) * Omega[i];
+      
+    }
+    
+  }
+  
+  for (int i = 1; i <= Y; i++) {
+    
+    for (int j = 0; j < X_centers; j++){
+      XtOmegaX2(Y + j, i - 1) = XtOmegaX2(i - 1, Y + j);
+    }
+    
+  }
+  
+  // spatial covariates times standard covariates
+  for (int i = 0; (unsigned)i < Omega.size(); i++){
+    
+    for(int j = 0; j < ncov_psi; j++){
+      
+      for(int l = 0; l < maxPoints; l++){
+        
+        XtOmegaX2(Y + X_centers + j, Y + X_s_index(i,l) - 1) +=
+          X(i, Y + X_centers + j) * X(i, Y + X_s_index(i,l) - 1) * Omega[i];
+        
+      }
+    }
+  }
+  
+  for (int i = 1; i <= X_centers; i++) {
+    
+    for (int j = 0; j < ncov_psi; j++){
+      XtOmegaX2(Y + i - 1, Y + X_centers + j) = XtOmegaX2(Y + X_centers + j, Y + i - 1);
+    }
+    
+  }
+  
+  // standard covariates times standard covariates
+  
+  for(int i = 0; i < ncov_psi; i++){
+    for (int j = 0; j <= i; j++) {
+      // arma::vec firstProduct = Omega % X.col(Y + X_centers + i);
+      // arma::vec secondProduct = firstProduct % X.col(Y + X_centers + j);
+      // XtOmegaX2(Y + X_centers + i, Y + X_centers + j) = sum(secondProduct);
+      for(int l = 0; l < Omega.size(); l++){
+        XtOmegaX2(Y + X_centers + i, Y + X_centers + j) += Omega[l] * X(l, Y + X_centers + i) * X(l, Y + X_centers + j);
+      }
+    }
+  }
+  
+  for (int i = 0; i < (ncov_psi- 1); i++) {
+    for (int j = i; j < ncov_psi; j++) {
+      XtOmegaX2(Y + X_centers + i, Y + X_centers + j) =
+        XtOmegaX2(Y + X_centers + j, Y + X_centers + i);
+    }
+  }
+  
+  return(XtOmegaX2);
+}
+
+arma::vec XtransposeKarma(arma::mat &X, IntegerVector X_y_index,
+                          arma::vec &k, int Y, int ncov){
+  
+  
+  arma::vec Xk = arma::zeros(X.n_cols);
+  
+  for(int i = 0; i < X_y_index.size(); i++){
+    Xk(X_y_index[i] - 1) += k[i];
+  }
+  
+  for(int i = 0; i < ncov; i++){
+    Xk(Y + i) = as_scalar(k.t() * X.col(Y + i));
+  }
+  
+  return(Xk);
+}
+
+arma::vec XtransposeKarma_SoR(arma::mat &X, IntegerVector X_y_index,
+                              arma::mat &X_s_index, arma::vec &k,
+                              int Y, int centers, int ncov){
+  
+  
+  arma::vec Xk = arma::zeros(X.n_cols);
+  
+  for(int i = 0; i < X_y_index.size(); i++){
+    Xk(X_y_index[i] - 1) += k[i];
+  }
+  
+  for(int i = 0; i < k.size(); i++){
+    for(int l = 0; l < X_s_index.n_cols; l++){
+      Xk(Y + X_s_index(i,l) - 1) += X(i, Y + X_s_index(i,l) - 1) * k[i];
+    }
+  }
+  
+  for(int i = 0; i < ncov; i++){
+    Xk(Y + centers + i) = as_scalar(k.t() * X.col(Y + centers + i));
+  }
+  
+  return(Xk);
+}
+
+// [[Rcpp::export]]
+arma::vec sample_beta_cpp_fast_sparse_SoR(arma::mat &X, arma::mat &invB, arma::vec &b,
+                                          arma::vec &k, arma::mat XtOmegaX,
+                                          IntegerVector X_y_index, arma::mat &X_s_index,
+                                          int Y, int centers, int ncov){
+  
+  // arma::mat tX = arma::trans(X);
+  
+  arma::mat tXk = XtransposeKarma_SoR(X, X_y_index, X_s_index, k, Y, centers, ncov);
+  
+  arma::mat Lambda_B = XtOmegaX + invB;
+  arma::vec mu_B = tXk + invB * b;
+  
+  arma::mat L = arma::trans(arma::chol(Lambda_B));
+  arma::vec tmp = arma::solve(arma::trimatl(L), mu_B);
+  arma::vec alpha = arma::solve(arma::trimatu(arma::trans(L)),tmp);
+  
+  // arma::vec result = mvrnormArmaQuick(alpha, arma::trans(arma::inv(arma::trimatl(L))));
+  
+  arma::vec z = arma::randn(invB.n_cols);
+  arma::vec v = arma::solve(arma::trimatu(arma::trans(L)), z);
+  
+  arma::vec result = v + alpha;
+  
+  return(result);
+}
+
+// [[Rcpp::export]]
+arma::vec sampleBetaCoef_betapsi_SoR(arma::mat &X, arma::mat &invB, arma::vec &b,
+                                     arma::vec &k, arma::mat XtOmegaX,
+                                     IntegerVector X_y_index, 
+                                     int Y, int ncov){
+  
+  // arma::mat tX = arma::trans(X);
+  
+  arma::mat tXk = XtransposeKarma(X, X_y_index, k, Y, ncov);
+  
+  arma::mat Lambda_B = XtOmegaX + invB;
+  arma::vec mu_B = tXk + invB * b;
+  
+  arma::mat L = arma::trans(arma::chol(Lambda_B));
+  arma::vec tmp = arma::solve(arma::trimatl(L), mu_B);
+  arma::vec alpha = arma::solve(arma::trimatu(arma::trans(L)),tmp);
+  
+  // arma::vec result = mvrnormArmaQuick(alpha, arma::trans(arma::inv(arma::trimatl(L))));
+  
+  arma::vec z = arma::randn(invB.n_cols);
+  arma::vec v = arma::solve(arma::trimatu(arma::trans(L)), z);
+  
+  arma::vec result = v + alpha;
+  
+  return(result);
+}
+
+// [[Rcpp::export]]
+List sampleBetaPsi_SoR(arma::vec beta,
+                       arma::vec a_s,
+                       arma::mat &X,
+                       arma::vec Xbeta,
+                       arma::vec b, 
+                       arma::mat invB, 
+                       arma::vec n, 
+                       arma::vec k,
+                       int Y,
+                       int X_centers,
+                       int ncov_psi,
+                       int numTimeSpaceCov,
+                       IntegerVector X_y_index,
+                       arma::mat &X_s_index){
+  
+  // NumericMatrix X_num = as<NumericMatrix>(X);
+  // NumericVector beta_num = as<NumericVector>(beta);
+  // NumericVector n_num = as<NumericVector>(n);
+  // NumericVector as_num = as<NumericVector>(a_s);
+  // 
+  // // sample Omega
+  // arma::vec Omega = sampleOmegaParallelas(X_num, beta_num, as_num, n_num);
+  // 
+  // arma::mat X_arma(X_num.begin(), X_num.nrow(), X_num.ncol(), false);
+  // arma::vec as_arma(as_num.begin(), as_num.size(), false);
+  // 
+  // // arma::vec Xbeta = X * beta + a_s;
+  // // arma::vec Omega = sample_Omega_cpp_noXb(Xbeta, n);
+  
+  arma::vec Xbetaas = Xbeta + a_s;
+  arma::vec Omega = samplePGvariables(Xbetaas, n);
+  
+  // arma::mat XtOmegaX = matrixProductXtOmegaX(X, Y, X_centers + numTimeSpaceCov + ncov_psi, 
+  //                                            Omega, X_y_index);
+  // 
+  // arma::vec knew = k - Omega % a_s;
+  // 
+  // arma::vec betaout = sampleBetaCoef_betapsi_SoR(X, invB, b, knew, XtOmegaX,
+  //                                                X_y_index, Y, X_centers + numTimeSpaceCov + ncov_psi);
+  
+  arma::mat XtOmegaX = matrixProductXtOmegaX_SoR(X, Y, X_centers, numTimeSpaceCov + ncov_psi, Omega,
+                                                 X_y_index, X_s_index);
+  
+  arma::vec knew = k - Omega % a_s;
+  
+  arma::vec betaout = sample_beta_cpp_fast_sparse_SoR(X, invB, b, knew, XtOmegaX,
+                                                      X_y_index, X_s_index, Y, X_centers, numTimeSpaceCov + ncov_psi);
+  
+  return(List::create(_["beta"] = betaout,
+                      _["Omega"] = Omega));//,
+  // _["XtOmegaX"] = XtOmegaX));
+}
+
+
 ///////////////  SAMPLE BETA P
 
 arma::mat XtOmegaX_betap(arma::mat &X, int p_intercepts, int ncov_p, arma::vec Omega,
-                                  IntegerVector X_y_index){
+                         IntegerVector X_y_index){
   
   arma::mat XtOmegaX2 = arma::zeros(X.n_cols, X.n_cols);
   
@@ -512,9 +783,9 @@ arma::vec XtransposeK_betap(arma::mat &X, IntegerVector X_y_index,
 }
 
 arma::vec sampleBetaCoef_betap(arma::mat &X, arma::mat &invB, arma::vec &b, 
-                                        arma::vec &k, arma::mat XtOmegaX,
-                                        IntegerVector X_y_index,
-                                        int p_intercepts, int ncov){
+                               arma::vec &k, arma::mat XtOmegaX,
+                               IntegerVector X_y_index,
+                               int p_intercepts, int ncov){
   
   // arma::mat tX = arma::trans(X);
   
@@ -552,7 +823,7 @@ arma::vec sampleBetaP(arma::vec beta,
   arma::vec Omega = samplePGvariables(Xbeta, n);
   
   arma::mat XtOmegaX = XtOmegaX_betap(X, p_intercepts, ncov_p, Omega,
-                                               X_y_index);
+                                      X_y_index);
   
   beta = sampleBetaCoef_betap(X, invB, b, k, XtOmegaX, X_y_index, p_intercepts, ncov_p);
   

@@ -176,12 +176,12 @@ update_hyperparameters <- function(l_T, a_l_T, b_l_T, sd_l_T, sd_sigma_T,
   # update l_s -------------------
   
   if(usingSpatial){
-    index_ls_grid <- sample_l_grid(l_s_grid, inv_K_s_grid, diag_K_s_grid,
+    index_ls <- sample_l_grid(l_s_grid, inv_K_s_grid, diag_K_s_grid,
                                    a_l_s, b_l_s, beta_psi[Y + 1:nrow(X_tilde)], sigma_s)
-    l_s <- l_s_grid[index_ls_grid]
+    l_s <- l_s_grid[index_ls]
   } else {
     l_s <- 0
-    index_ls_grid <- 0
+    index_ls <- 0
   }
   
   # update sigma_s ---------------------
@@ -190,7 +190,7 @@ update_hyperparameters <- function(l_T, a_l_T, b_l_T, sd_l_T, sd_sigma_T,
     
     X_centers <- nrow(X_tilde)
     
-    inv_chol_Kl <- inv_chol_K_s_grid[,,index_ls_grid]
+    inv_chol_Kl <- inv_chol_K_s_grid[,,index_ls]
     
     a_s <- beta_psi[Y + 1:X_centers]
     
@@ -206,7 +206,7 @@ update_hyperparameters <- function(l_T, a_l_T, b_l_T, sd_l_T, sd_sigma_T,
   if(usingSpatial){
     X_centers <- nrow(X_tilde)
     
-    inv_K_lsigma <- inv_K_s_grid[,,index_ls_grid] / sigma_s^2
+    inv_K_lsigma <- inv_K_s_grid[,,index_ls] / sigma_s^2
     
     inv_B_psi[Y + 1:X_centers, Y + 1:X_centers] <- inv_K_lsigma  
   }
@@ -219,7 +219,7 @@ update_hyperparameters <- function(l_T, a_l_T, b_l_T, sd_l_T, sd_sigma_T,
        "sigma_T" = sigma_T,
        "inv_B_psi" = inv_B_psi,
        "l_s" = l_s,
-       "index_ls_grid" = index_ls_grid,
+       "index_ls" = index_ls,
        "sigma_s" = sigma_s,
        "sigma_eps" = sigma_eps)
 }
