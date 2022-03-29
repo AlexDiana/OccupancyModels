@@ -520,8 +520,8 @@ runModel <- function(data, index_year, index_site,
           # precompute parameters to update l_s
           if(usingSpatial){
             
-            length_grid_ls <- 5
-            l_s_grid <- seq(0.01, 0.5, length.out = length_grid_ls)
+            length_grid_ls <- 20
+            l_s_grid <- seq(0.001, 0.5, length.out = length_grid_ls)
             index_ls <- floor(length_grid_ls / 2)
             l_s <- l_s_grid[index_ls]
             
@@ -529,6 +529,8 @@ runModel <- function(data, index_year, index_site,
             inv_K_s_grid <- array(NA, dim = c(X_centers, X_centers, length_grid_ls))
             diag_K_s_grid <- array(NA, dim = c(X_centers, length_grid_ls))
             inv_chol_K_s_grid <- array(NA, dim = c(X_centers, X_centers, length_grid_ls))
+            
+            ginv_sqare_grid <- array(NA, dim = c(nrow(X_psi), X_centers, length_grid_ls))
             
             for (j in 1:length_grid_ls) {
               l_s_current <- l_s_grid[j]
@@ -565,6 +567,7 @@ runModel <- function(data, index_year, index_site,
                 #   K_staruKu_all[j,-X_s_index_all[j,,i],i] <- 0
                 #   K_staruKu_all[j,,i] <- K_staruKu_all[j,,i] / sum(K_staruKu_all[j,,i])
                 # }
+                ginv_sqare_grid[,,j] <- ginv_square_fast(K_staru, K2(X_tilde, X_tilde, 1, l_s_grid[i]))
                 
               }
               
@@ -625,7 +628,7 @@ runModel <- function(data, index_year, index_site,
             print(paste0("Chain = ",chain," - Iteration = ",iter - nburn))
           }  
         }
-        print(max(beta_psi))
+        print(paste0("sigma = ",sigma_s," - l_s = ",l_s))
         # print(paste0("l_s = ",l_s," / sigma_s = ",sigma_s,
         #              " / max(beta_psi) = ",max(abs(beta_psi[Y  + 1:X_centers]))))
         
@@ -673,26 +676,26 @@ runModel <- function(data, index_year, index_site,
         
         # sample hyperparameters ---------
         
-        # list_hyperparameters <- update_hyperparameters(l_T, a_l_T, b_l_T, sd_l_T, sd_sigma_T,
-        #                                                sigma_T, a_sigma_T, b_sigma_T, Y,
-        #                                                beta_psi, inv_B_psi,
-        #                                                b_psi, sigma_psi,
-        #                                                l_s_grid, K_s_grid, inv_K_s_grid,
-        #                                                inv_chol_K_s_grid, diag_K_s_grid,
-        #                                                a_l_s, b_l_s,
-        #                                                sigma_s, a_sigma_s, b_sigma_s, X_tilde,
-        #                                                a_sigma_eps, b_sigma_eps,
-        #                                                usingSpatial,
-        #                                                XbetaY, Xbetas, Xbeta_cov,
-        #                                                eps_s, k_s,
-        #                                                z, X_psi, Omega, X_y_index)
-        # l_T <- list_hyperparameters$l_T
-        # sigma_T <- list_hyperparameters$sigma_T
-        # sigma_s <- list_hyperparameters$sigma_s
-        # l_s <- list_hyperparameters$l_s
-        # index_l_s <- list_hyperparameters$index_l_s
-        # inv_B_psi <- list_hyperparameters$inv_B_psi
-        # sigma_eps <- list_hyperparameters$sigma_eps
+        list_hyperparameters <- update_hyperparameters(l_T, a_l_T, b_l_T, sd_l_T, sd_sigma_T,
+                                                       sigma_T, a_sigma_T, b_sigma_T, Y,
+                                                       beta_psi, inv_B_psi,
+                                                       b_psi, sigma_psi,
+                                                       l_s_grid, K_s_grid, inv_K_s_grid,
+                                                       inv_chol_K_s_grid, diag_K_s_grid,
+                                                       a_l_s, b_l_s,
+                                                       sigma_s, a_sigma_s, b_sigma_s, X_tilde,
+                                                       a_sigma_eps, b_sigma_eps,
+                                                       usingSpatial,
+                                                       XbetaY, Xbetas, Xbeta_cov,
+                                                       eps_s, k_s,
+                                                       z, X_psi, Omega, X_y_index)
+        l_T <- list_hyperparameters$l_T
+        sigma_T <- list_hyperparameters$sigma_T
+        sigma_s <- list_hyperparameters$sigma_s
+        l_s <- list_hyperparameters$l_s
+        index_l_s <- list_hyperparameters$index_l_s
+        inv_B_psi <- list_hyperparameters$inv_B_psi
+        sigma_eps <- list_hyperparameters$sigma_eps
         
         # sample p ----------------
         

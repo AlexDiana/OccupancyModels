@@ -11,8 +11,8 @@ sapply(r_functions, function(x) {
 
 # simulate data -----------------------------------------------------------
 
-Y <- 10 # years
-S_years <- rep(500, Y)#floor(seq(2000, 2000, length.out = Y)) 
+Y <- 5 # years
+S_years <- rep(10000, Y)#floor(seq(2000, 2000, length.out = Y)) 
 V_lambda <- 2 # number of visits
 
 X <- expand.grid(seq(0, 1, length.out = sqrt(S_years[1])),
@@ -24,7 +24,7 @@ X <- scale(X)
 
 mu_psi_true <- 0
 beta_psi_tsp_true <- c(0, 0)
-beta_psi_true <- c(1, -.5) # rep(0, 0)
+beta_psi_true <- c(1) # rep(0, 0)
 sigma_gp <- .2
 l_gp <- 2
 
@@ -35,21 +35,21 @@ b_t_true <- mvrnorm(1, rep(0, Y), K_l)
 #mvrnorm(1, mu = rep(0, Y), Sigma = diag(0.1, nrow = Y))#seq(-.5,5,length.out = Y)
 
 mu_p_true <- -1
-beta_p_true <- c(.5)#rep(0, 0)#
+beta_p_true <- rep(0, 0)#c(.5)##
 
 sigma_s_true <- .5
 l_s_true <- .25
 
 sigma_eps_true <- .1
 
-# Sigma_X <- K2(X, X, sigma_s_true^2, l_s_true)
-# a_s_site_true <- rcpp_rmvnorm(1, Sigma_X, rep(0, nrow(X)))#rnorm(nrow(X), 0, sd = sigma_s_true)##########rep(0, nrow(X))###
+Sigma_X <- K2(X, X, sigma_s_true^2, l_s_true)
+a_s_site_true <- rcpp_rmvnorm(1, Sigma_X, rep(0, nrow(X)))#rnorm(nrow(X), 0, sd = sigma_s_true)##########rep(0, nrow(X))###
 
 # a_s_site_true <- c(rep(.5, max(S_years) * 75 / 100), rep(-.5, max(S_years) * 25 / 100))
 
 # a_s_site_true <- a_s_site_true + rnorm(nrow(X), 0, sd = sigma_eps_true)
 
-a_s_site_true <- rnorm(nrow(X), 0, sd = sigma_eps_true)
+# a_s_site_true <- rnorm(nrow(X), 0, sd = sigma_eps_true)
 
 a_s_site_true <- a_s_site_true - mean(a_s_site_true)
 # a_s_site_true <- a_s_site_true / 2

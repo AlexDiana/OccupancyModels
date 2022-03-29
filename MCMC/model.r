@@ -91,11 +91,11 @@ realData <- F
     data <- read.csv(file = data_file, stringsAsFactors = F)
     index_year <- 1
     index_site <- 2
-    index_occ <- 8
+    index_occ <- 6
     index_spatial_x <- 3
     index_spatial_y <- 4
-    covariates_psi_text <- "5-6"#  "7"
-    covariates_p_text <- "7"  #"5-6"
+    covariates_psi_text <- "5"#  "7"
+    covariates_p_text <- "0"  #"5-6"
   }
   
 }
@@ -112,7 +112,7 @@ realData <- F
   # gridStep * sdBoth / 1000
   # buildSpatialGrid(data$EAST, data$NORTH, gridStep)
   
-  gridStep <- .45#.1015#
+  gridStep <- .3#.1015#
   buildSpatialGrid(data$X1, data$X2, gridStep)
   
   # buildSpatialGrid(data$X1, data$X2, .1)
@@ -121,13 +121,13 @@ realData <- F
 # mcmc parameter
 {
   nchain <- 1
-  nburn <- 2500#15000
-  niter <- 2500#20000
+  nburn <- 500#15000
+  niter <- 500#20000
 }
 
-usingSpatial <- F
+usingSpatial <- T
 usingYearDetProb <- F
-spatialApprox <- ""
+spatialApprox <- "SoD"
 maxPoints <- 5
 storeRE <- F
 

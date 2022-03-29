@@ -1,4 +1,28 @@
 
+library(MASS)
+
+ginv_square_fast <- function(X1, X2){
+  
+  n_2 <- ncol(X2)
+  
+  eigenX2 <- eigen(X2)
+  V <- eigenX2$vectors
+  sq_invX2 <- V %*% diag(1 / sqrt(eigenX2$values), nrow = n_2) %*% t(V)
+  
+  B <- X1 %*% sq_invX2
+  
+  Cov_svd <- svd(B)
+  
+  U <-  Cov_svd$u
+  D2 <- Cov_svd$d * Cov_svd$d
+  UT <- t(Cov_svd$u)
+  
+  D_star <- ginv(diag(D2, nrow = n_2))
+  
+  U %*% sqrt(D_star) 
+  
+}
+
 rinvgamma <- function(a, b){
   1 / stats::rgamma(1, shape = a, rate = b)
 }
@@ -151,7 +175,8 @@ update_hyperparameters <- function(l_T, a_l_T, b_l_T, sd_l_T, sd_sigma_T,
                                    usingSpatial, 
                                    XbetaY, Xbetas, Xbeta_cov,
                                    eps_s, k_s, 
-                                   z, X_psi, Omega, X_y_index){
+                                   z, X_psi, Omega, X_y_index,
+                                   spatialApprox){
   
   
   # update l_T and sigma_T -------------------
@@ -177,7 +202,7 @@ update_hyperparameters <- function(l_T, a_l_T, b_l_T, sd_l_T, sd_sigma_T,
   
   if(usingSpatial){
     index_ls <- sample_l_grid(l_s_grid, inv_K_s_grid, diag_K_s_grid,
-                                   a_l_s, b_l_s, beta_psi[Y + 1:nrow(X_tilde)], sigma_s)
+    a_l_s, b_l_s, beta_psi[Y + 1:nrow(X_tilde)], sigma_s)
     l_s <- l_s_grid[index_ls]
   } else {
     l_s <- 0
@@ -189,12 +214,12 @@ update_hyperparameters <- function(l_T, a_l_T, b_l_T, sd_l_T, sd_sigma_T,
   if(usingSpatial){
     
     X_centers <- nrow(X_tilde)
+    a_ig <- X_centers / 2
     
     inv_chol_Kl <- inv_chol_K_s_grid[,,index_ls]
     
     a_s <- beta_psi[Y + 1:X_centers]
     
-    a_ig <- X_centers / 2
     Ltas <- inv_chol_Kl %*% a_s
     b_ig <- (t(Ltas) %*% Ltas) / 2
     

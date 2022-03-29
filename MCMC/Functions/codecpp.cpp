@@ -385,6 +385,7 @@ arma::vec XtransposeK_betapsi(arma::mat &X, IntegerVector X_y_index,
   return(Xk);
 }
 
+// [[Rcpp::export]]
 arma::vec sampleBetaCoef_betapsi(arma::mat &X, arma::mat &invB, arma::vec &b, 
                                  arma::vec &k, arma::mat XtOmegaX,
                                  IntegerVector X_y_index, IntegerVector X_s_index,

@@ -345,21 +345,36 @@ if(usingSpatial){
   beta_psi_true_all <- c(beta_psi_tsp_true, beta_psi_true_all)
 }
 
+beta_MCMC_df <- as.data.frame(t(beta_effect_MCMC_all))
+beta_MCMC_df$S <- factor(S_grid)
 
-occcov_plot <- ggplot() + 
+beta_VB_df <- as.data.frame(t(beta_effect_VB_all))
+beta_VB_df$S <- factor(S_grid)
+
+library(reshape2)
+
+# beta_effect_MCMC_all_long_CI25 <- melt(beta_effect_MCMC_all[1,])
+# beta_effect_MCMC_all_long_CI5 <- melt(beta_effect_MCMC_all[2,])
+# beta_effect_MCMC_all_long_CI95 <- melt(beta_effect_MCMC_all[3,])
+
+(occcov_plot <- ggplot() + 
   # geom_point(data = NULL, aes(x = namesCovariates_all,#colnames(betaeffect),
   #                             y = betaeffect[2,])) + 
-  geom_errorbar(data = NULL, aes(x = namesCovariates_all,#colnames(betaeffect),
-                                 ymin = betaeffect_MCMC[1,],
-                                 ymax = betaeffect_MCMC[3,]), alpha = .7) +
-  geom_errorbar(data = NULL, aes(x = namesCovariates_all,#colnames(betaeffect),
-                                 ymin = betaeffect_VB[1,],
-                                 ymax = betaeffect_VB[3,]), size = 2) +
-  geom_point(data = NULL, aes(x = namesCovariates_all,
-                              y = beta_psi_true), color = "red", size = 4) + 
-  ylab("Effect") + scale_x_discrete(name = "Covariates") +
+  geom_errorbar(data = beta_MCMC_df, 
+                aes(x = S,#colnames(betaeffect),
+                                 ymin = V1,
+                                 ymax = V3), alpha = .7) +
+  geom_errorbar(data = beta_VB_df, aes(x = S,#colnames(betaeffect),
+                                 ymin = V1,
+                                 ymax = V3), size = 2) +
+    scale_x_discrete() + 
+  geom_hline(data = NULL, aes(yintercept = beta_psi_true), color = "red", size = 1) + 
+  ylab("Effect") + scale_x_discrete(name = "Sites") +
   theme(plot.title = element_text(hjust = 0.5, size = 20),
         axis.title = element_text(size = 20, face = "bold"),
         axis.text = element_text(size = 16, face = "bold"),
         panel.grid.major = element_line(colour="grey", size=0.015),
-        panel.background = element_rect(fill = "white", color = "black"))
+        panel.background = element_rect(fill = "white", color = "black")))
+
+
+ggsave(occcov_plot, file = "covariatesplot.jpeg")
