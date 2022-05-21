@@ -127,8 +127,8 @@ realData <- F
 
 usingSpatial <- T
 usingYearDetProb <- F
-spatialApprox <- "SoD"
-maxPoints <- 5
+spatialApprox <- "SoR"
+maxPoints <- 10
 storeRE <- F
 
 st1 <- Sys.time()
@@ -174,7 +174,7 @@ plotGOFYearDetections(modelResults)
 plotGOFSpaceDections(modelResults)
 
 # diagnostics
-tracePlot_OccupancyIndexRate(modelResults, 9)
+tracePlot_OccupancyIndexRate(modelResults_MCMC, 1)
 tracePlot_OccupancyYearEffect(modelResults, 5)
 tracePlot_OccupancySiteEffect(modelResults, 30)
 tracePlot_OccupancyCovariate(modelResults, 1)

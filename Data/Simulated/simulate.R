@@ -38,7 +38,7 @@ mu_p_true <- -1
 beta_p_true <- rep(0, 0)#c(.5)##
 
 sigma_s_true <- .5
-l_s_true <- .25
+l_s_true <- .2
 
 sigma_eps_true <- .1
 
@@ -52,7 +52,7 @@ a_s_site_true <- rcpp_rmvnorm(1, Sigma_X, rep(0, nrow(X)))#rnorm(nrow(X), 0, sd 
 # a_s_site_true <- rnorm(nrow(X), 0, sd = sigma_eps_true)
 
 a_s_site_true <- a_s_site_true - mean(a_s_site_true)
-# a_s_site_true <- a_s_site_true / 2
+a_s_site_true <- a_s_site_true / 4
 
 # plot effects
 {

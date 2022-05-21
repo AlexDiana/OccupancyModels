@@ -1,8 +1,9 @@
 
-update_psi <- function(beta_psi, X_psi, Xbeta, 
+update_psi <- function(beta_psi, X_psi_cov, Xbeta, 
                        b_psi, inv_B_psi, 
                        z, k_s, sites, Y, X_centers, ncov_psi, 
-                       X_y_index, X_s_index, numTimeSpaceCov,
+                       X_y_index, X_sc_index, X_s_sor,
+                       numTimeSpaceCov,
                        usingSpatial, spatialApprox, eps_s, sigma_eps){
   
   k <- z - .5
@@ -15,13 +16,13 @@ update_psi <- function(beta_psi, X_psi, Xbeta,
                                          # n, k, Y, X_centers, ncov_psi, numTimeSpaceCov,
                                          # X_y_index, X_s_index)
   if(!usingSpatial | (usingSpatial & spatialApprox == "SoD")){
-    list_beta_psi <- sampleBetaPsi(beta_psi, eps_s, X_psi, Xbeta, b_psi, inv_B_psi,
+    list_beta_psi <- sampleBetaPsi(beta_psi, eps_s, X_psi_cov, Xbeta, b_psi, inv_B_psi,
                                    n, k, Y, X_centers, ncov_psi, numTimeSpaceCov,
-                                   X_y_index, X_s_index)
+                                   X_y_index,  X_sc_index)
   } else {
-    list_beta_psi <- sampleBetaPsi_SoR(beta_psi, eps_s, X_psi, Xbeta, b_psi, inv_B_psi,
+    list_beta_psi <- sampleBetaPsi_SoR(beta_psi, eps_s, X_psi_cov, Xbeta, b_psi, inv_B_psi,
                                        n, k, Y, X_centers, ncov_psi, numTimeSpaceCov,
-                                       X_y_index, X_s_index)
+                                       X_y_index, X_sc_index, X_s_sor)
   }
     
   beta_psi <- list_beta_psi$beta
@@ -33,16 +34,17 @@ update_psi <- function(beta_psi, X_psi, Xbeta,
   Xbeta <- XbetaY
   if(usingSpatial){
     if(spatialApprox == "SoD"){
-      Xbetas <- beta_psi[Y + X_s_index]
+      Xbetas <- beta_psi[Y + X_sc_index]
     } else if(spatialApprox == "SoR"){
-      Xbetas <- X_psi[,Y + seq_len(X_centers)] %*% beta_psi[Y + seq_len(X_centers)]
+      # Xbetas <- X_psi[,Y + seq_len(X_centers)] %*% beta_psi[Y + seq_len(X_centers)]
+      Xbetas <- X_s_sor %*% beta_psi[Y + seq_len(X_centers)]
     }
     Xbeta <- Xbeta + Xbetas
   } else {
     Xbetas <- NULL
   }
   if((ncov_psi + numTimeSpaceCov) > 0) {
-    Xbeta_cov <- X_psi[,-(1:(Y + X_centers)),drop = F] %*% beta_psi[-(1:(Y + X_centers))]
+    Xbeta_cov <- X_psi_cov %*% beta_psi[-(1:(Y + X_centers))]
     Xbeta <- Xbeta + Xbeta_cov
   } else {
     Xbeta_cov <- rep(0, length(k))
@@ -50,9 +52,9 @@ update_psi <- function(beta_psi, X_psi, Xbeta,
   
   # update random effects
   
-  eps_s <- sample_eps_cpp(k_s$Site, sort(unique(k_s$Site)),
-                          Xbeta, k,
-                          z, Omega, sigma_eps)
+  # eps_s <- sample_eps_cpp(k_s$Site, sort(unique(k_s$Site)),
+  #                         Xbeta, k,
+  #                         z, Omega, sigma_eps)
 
   psi <- as.vector(logit(Xbeta + eps_s))
   

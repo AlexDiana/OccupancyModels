@@ -23,10 +23,42 @@ ginv_square_fast <- function(X1, X2){
   
 }
 
+ginvsquare_pseudodet <- function(X1, X2){
+  
+  n_2 <- ncol(X2)
+  
+  nuggetMat <- nuggetMat <- diag(exp(-20), nrow = n_2)
+  
+  eigenX2 <- eigen(X2 + nuggetMat)
+  V <- eigenX2$vectors
+  sq_invX2 <- V %*% diag(1 / sqrt(eigenX2$values), nrow = n_2) %*% t(V)
+  
+  B <- X1 %*% sq_invX2
+  
+  Cov_svd <- svd(B)
+  
+  U <-  Cov_svd$u
+  D2 <- Cov_svd$d * Cov_svd$d
+  UT <- t(Cov_svd$u)
+  
+  D_star <- ginv(diag(D2, nrow = n_2))
+  
+  sq <- U %*% sqrt(D_star) 
+  
+  # pdet <- prod(D2[which(diag(D_star) > 0)])
+  lpdet <- sum(log(D2[D2 > 0]))
+  
+  nval <- sum(D2 > 0)
+  
+  list("sq" = sq,
+       "lpdet" = lpdet,
+       "nval" = nval)
+  
+}
+
 rinvgamma <- function(a, b){
   1 / stats::rgamma(1, shape = a, rate = b)
 }
-
 
 dinvgamma <- function (x, shape, scale = 1)  {
   log.density <- shape * log(scale) - lgamma(shape) - 
@@ -121,39 +153,28 @@ rcpp_log_dmvnorm_fast <- function (inv_S, diag_S, sigma_s, x) {
            (1/2) * (1 / sigma_s^2) * x %*% inv_S %*% x)
 }
 
-sample_l_grid <- function(l_s_grid, inv_K_s_grid, diag_K_s_grid,
-                          a_l_s, b_l_s, a_s, sigma_s){
+sample_l_grid <- function(l_s_grid, a_s, n_p, ldet_grid, sq_grid,
+                          a_l_s, b_l_s, sigma_s){
   
   posterior_val <- rep(NA, length(l_s_grid))
   
   for (j in 1:length(l_s_grid)) {
     
     l_s <- l_s_grid[j]
-    # K_s_grid_j <- K_s_grid[,,j] * sigma_s^2
-    # inv_K_s_grid_j <- inv_K_s_grid[,,j] / sigma_s^2
-    # diag_K_s_grid_j <- diag_K_s_grid[,j] * sigma_s
+      
+    xsq <- t(a_s) %*% sq_grid[,,j]
     
-    # loglikelihood <- rcpp_log_dmvnorm_fast(inv_K_s_grid[,,j],
-    #                                        diag_K_s_grid[,j], sigma_s, a_s)
+    loglikelihood <- - n_p / 2 * (log(2 * pi) + log(sigma_s^2)) - .5 * ldet_grid[j] -
+      (1/2) * (1 / sigma_s^2) * (xsq %*% t(xsq))
     
-    loglikelihood <- ((-length(a_s)/2) * log(2 * pi) - sum(log(diag_K_s_grid[,j]) + log(sigma_s)) -
-                        (1/2) * (1 / sigma_s^2) * a_s %*% inv_K_s_grid[,,j] %*% a_s)
-    
-    # loglikelihood <- rcpp_log_dmvnorm_fast(1, inv_K_s_grid_j,
-    # diag_K_s_grid_j,  a_s)
-    
-    # Sigma_l <- K2(X_tilde, X_tilde, sigma_s^2, l_s) + diag(exp(-10), nrow = nrow(X_tilde))
-    
-    # (loglikelihood2 <- rcpp_log_dmvnorm( Sigma_l, rep(0, X_centers), a_s, F))
+    # loglikelihood <- ((-length(a_s)/2) * log(2 * pi) - sum(log(diag_K_s_grid[,j]) + log(sigma_s)) -
+    #                     (1/2) * (1 / sigma_s^2) * a_s %*% inv_K_s_grid[,,j] %*% a_s)
     
     logPrior <- dgamma(l_s, a_l_s, b_l_s, log = T)
     
     posterior_val[j] <- logPrior + loglikelihood
     
   }
-  
-  # posterior_val <- sample_l_grid_cpp(l_s_grid, sigma_s, inv_K_s_grid, diag_K_s_grid,
-  # a_l_s, b_l_s, a_s)
   
   posterior_val <- posterior_val - max(posterior_val)
   
@@ -163,28 +184,114 @@ sample_l_grid <- function(l_s_grid, inv_K_s_grid, diag_K_s_grid,
   index_l_grid
 }
 
-update_hyperparameters <- function(l_T, a_l_T, b_l_T, sd_l_T, sd_sigma_T,
-                                   sigma_T, a_sigma_T, b_sigma_T, Y,
+# sample_l_grid_SoD <- function(l_s_grid, inv_K_s_grid, diag_K_s_grid,
+#                           a_l_s, b_l_s, a_s, sigma_s){
+#   
+#   posterior_val <- rep(NA, length(l_s_grid))
+#   
+#   for (j in 1:length(l_s_grid)) {
+#     
+#     l_s <- l_s_grid[j]
+#     # K_s_grid_j <- K_s_grid[,,j] * sigma_s^2
+#     # inv_K_s_grid_j <- inv_K_s_grid[,,j] / sigma_s^2
+#     # diag_K_s_grid_j <- diag_K_s_grid[,j] * sigma_s
+#     
+#     # loglikelihood <- rcpp_log_dmvnorm_fast(inv_K_s_grid[,,j],
+#     #                                        diag_K_s_grid[,j], sigma_s, a_s)
+#     
+#     loglikelihood <- ((-length(a_s)/2) * log(2 * pi) - sum(log(diag_K_s_grid[,j]) + log(sigma_s)) -
+#                         (1/2) * (1 / sigma_s^2) * a_s %*% inv_K_s_grid[,,j] %*% a_s)
+#     
+#     # loglikelihood <- rcpp_log_dmvnorm_fast(1, inv_K_s_grid_j,
+#     # diag_K_s_grid_j,  a_s)
+#     
+#     # Sigma_l <- K2(X_tilde, X_tilde, sigma_s^2, l_s) + diag(exp(-10), nrow = nrow(X_tilde))
+#     
+#     # (loglikelihood2 <- rcpp_log_dmvnorm( Sigma_l, rep(0, X_centers), a_s, F))
+#     
+#     logPrior <- dgamma(l_s, a_l_s, b_l_s, log = T)
+#     
+#     posterior_val[j] <- logPrior + loglikelihood
+#     
+#   }
+#   
+#   # posterior_val <- sample_l_grid_cpp(l_s_grid, sigma_s, inv_K_s_grid, diag_K_s_grid,
+#   # a_l_s, b_l_s, a_s)
+#   
+#   posterior_val <- posterior_val - max(posterior_val)
+#   
+#   index_l_grid <- sample(1:length(l_s_grid), size = 1, 
+#                          prob = exp(posterior_val) / sum(exp(posterior_val)))
+#   
+#   index_l_grid
+# }
+# 
+# sample_l_grid_SoR <- function(l_s_grid, inv_K_s_grid, diag_K_s_grid,
+#                           a_l_s, b_l_s, a_s, sigma_s){
+#   
+#   posterior_val <- rep(NA, length(l_s_grid))
+#   
+#   for (j in 1:length(l_s_grid)) {
+#     
+#     l_s <- l_s_grid[j]
+#     
+#     sq_ginv <- ginv_square_grid[,,index_ls]
+#     
+#     Ltas <- t(a_s) %*% sq_ginv
+#     
+#     loglikelihood <- (-length(a_s)/2) * log(2 * pi) - sum(log(diag_K_s_grid[,j]) + log(sigma_s)) -
+#                         (1/2) * (1 / sigma_s^2) * (Ltas %*% t(Ltas))
+#     
+#     logPrior <- dgamma(l_s, a_l_s, b_l_s, log = T)
+#     
+#     posterior_val[j] <- logPrior + loglikelihood
+#     
+#   }
+#   
+#   # posterior_val <- sample_l_grid_cpp(l_s_grid, sigma_s, inv_K_s_grid, diag_K_s_grid,
+#   # a_l_s, b_l_s, a_s)
+#   
+#   posterior_val <- posterior_val - max(posterior_val)
+#   
+#   index_l_grid <- sample(1:length(l_s_grid), size = 1, 
+#                          prob = exp(posterior_val) / sum(exp(posterior_val)))
+#   
+#   index_l_grid
+# }
+
+update_hyperparameters <- function(l_T, a_l_T, b_l_T, sd_l_T, 
+                                   sigma_T, a_sigma_T, b_sigma_T, sd_sigma_T,
+                                   Y,
                                    beta_psi, inv_B_psi, 
                                    b_psi, sigma_psi,
-                                   l_s_grid, K_s_grid, inv_K_s_grid, 
-                                   inv_chol_K_s_grid, diag_K_s_grid,
+                                   l_s_grid, 
                                    a_l_s, b_l_s, 
                                    sigma_s, a_sigma_s, b_sigma_s, X_tilde,
                                    a_sigma_eps, b_sigma_eps,
                                    usingSpatial, 
                                    XbetaY, Xbetas, Xbeta_cov,
                                    eps_s, k_s, 
-                                   z, X_psi, Omega, X_y_index,
+                                   z, Omega, X_y_index,
+                                   listparams_spatial,
                                    spatialApprox){
   
+  if(usingSpatial){
+
+    sq_grid <- listparams_spatial$sq_grid
+    ldet_grid <- listparams_spatial$ldet_grid
+    inv_K_s_grid <- listparams_spatial$inv_K_s_grid
+    n_p <- listparams_spatial$n_p
+    X_sor_all <- listparams_spatial$X_sor_all
+    X_centers <- nrow(X_tilde)
+    
+  }
   
   # update l_T and sigma_T -------------------
   
-  list_l_sigma <- update_l_sigma_integrated(l_T, sigma_T, a_l_T, b_l_T, a_sigma_T, b_sigma_T, Y, 
-                                            sigma_psi,
-                                            z, betaY, Xbetas, Xbeta_cov, eps_s, Omega,  
-                                            b_psi[1:Y], sd_l = sd_l_T, 
+  list_l_sigma <- update_l_sigma_integrated(l_T, sigma_T, a_l_T, b_l_T, a_sigma_T, b_sigma_T, 
+                                            Y, sigma_psi,
+                                            z, XbetaY, Xbetas, Xbeta_cov, eps_s, Omega,  
+                                            b_psi[1:Y], sd_l_T, 
                                             sd_sigma_T, X_y_index, usingSpatial)
   l_T <- list_l_sigma$l_T
   sigma_T <- list_l_sigma$sigma_T
@@ -201,8 +308,20 @@ update_hyperparameters <- function(l_T, a_l_T, b_l_T, sd_l_T, sd_sigma_T,
   # update l_s -------------------
   
   if(usingSpatial){
-    index_ls <- sample_l_grid(l_s_grid, inv_K_s_grid, diag_K_s_grid,
-    a_l_s, b_l_s, beta_psi[Y + 1:nrow(X_tilde)], sigma_s)
+    
+    if(spatialApprox == "SoD" | spatialApprox == "SoR"){
+      a_s <- beta_psi[Y + 1:nrow(X_tilde)]
+      # index_ls <- sample_l_grid_SoD(l_s_grid, inv_K_s_grid, diag_K_s_grid,
+      #                               a_l_s, b_l_s, beta_psi[Y + 1:nrow(X_tilde)], sigma_s)  
+    } else  if(spatialApprox == "SoC"){
+      a_s <- X_sor_all[,,index_ls] %*% beta_psi[Y + 1:X_centers]
+      # index_ls <- sample_l_grid_SoR(l_s_grid, inv_K_s_grid, diag_K_s_grid,
+      #                               a_l_s, b_l_s, a_s, sigma_s)  
+    }
+    
+    index_ls <- sample_l_grid(l_s_grid, a_s, n_p, ldet_grid, sq_grid,
+                              a_l_s, b_l_s, sigma_s)
+
     l_s <- l_s_grid[index_ls]
   } else {
     l_s <- 0
@@ -213,15 +332,32 @@ update_hyperparameters <- function(l_T, a_l_T, b_l_T, sd_l_T, sd_sigma_T,
   
   if(usingSpatial){
     
-    X_centers <- nrow(X_tilde)
-    a_ig <- X_centers / 2
+    # X_centers <- nrow(X_tilde)
+    # a_ig <- X_centers / 2
+    a_ig <- n_p / 2
     
-    inv_chol_Kl <- inv_chol_K_s_grid[,,index_ls]
+    if(spatialApprox == "SoD" | spatialApprox == "SoR"){
+      # inv_chol_Kl <- inv_chol_K_s_grid[,,index_ls]
+      
+      a_s <- beta_psi[Y + 1:X_centers]
+      
+      # Ltas <- inv_chol_Kl %*% a_s
+      # b_ig <- (t(Ltas) %*% Ltas) / 2  
+    } else if(spatialApprox == "SoC"){
+      
+      # sq_ginv <- ginv_square_grid[,,index_ls]
+      
+      a_s <- X_sor_all[,,index_ls] %*% beta_psi[Y + 1:X_centers]
+      
+      # Ltas <- t(a_s) %*% sq_ginv
+      
+      
+    }
     
-    a_s <- beta_psi[Y + 1:X_centers]
+    sq_current <- sq_grid[,,index_ls]
+    Ltas <- t(a_s) %*% sq_current
     
-    Ltas <- inv_chol_Kl %*% a_s
-    b_ig <- (t(Ltas) %*% Ltas) / 2
+    b_ig <- (Ltas %*% t(Ltas)) / 2  
     
     sigma_s <- sqrt(rinvgamma(a_sigma_s + a_ig, b_sigma_s + b_ig))
   } 

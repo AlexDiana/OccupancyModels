@@ -1,44 +1,56 @@
 
-X_tilde <- modelResults_MCMC$dataCharacteristics$X_tilde
-X_centers <- nrow(X_tilde)
-years <- modelResults_MCMC$dataCharacteristics$Years
-Y <- length(years)
+predNewLocations <- function(siteLocations, modelResults_MCMC){
+  
+  X_tilde <- modelResults_MCMC$dataCharacteristics$X_tilde
+  X_centers <- nrow(X_tilde)
+  years <- modelResults_MCMC$dataCharacteristics$Years
+  Y <- length(years)
+  
+  beta_psi_output <- modelResults_MCMC$modelOutput$beta_psi_output
+  beta_psi_output <- apply(beta_psi_output, 3, c)
+  
+  l_s_output <- modelResults_MCMC$modelOutput$l_s_output
+  l_s_output <- apply(l_s_output, 2, c)
+  
+  # prediction at new points
+  {
+    l_uniquevals <- unique(l_s_output)
+    X_coeff_grid <- array(NA, dim = c(nrow(siteLocations), X_centers, length(l_uniquevals)))
+    for (j in seq_along(l_uniquevals)) {
+      K_staru <- K2(siteLocations, X_tilde, 1, l_uniquevals[j])
+      inv_K_uu <- solve(K2(X_tilde, X_tilde, 1, l_uniquevals[j]) + 
+                          diag(exp(-10), nrow = nrow(X_tilde)))
+      X_coeff <- K_staru %*% inv_K_uu
+      X_coeff_grid[,,j] <- X_coeff
+    }
+    
+    a_s_output <- array(NA, dim = c(nrow(siteLocations), niter))
+    for (iter in 1:niter) {
+      print(iter)
+      beta_current <- beta_psi_output[iter,]
+      l_current <- l_s_output[iter]
+      
+      idx_l <- match(l_current, l_uniquevals)
+      
+      a_s_star <- X_coeff_grid[,,idx_l] %*% beta_current[Y + seq_len(X_centers)]
+      a_s_output[,iter] <- a_s_star
+    }
+    
+    a_s_mean <- apply(a_s_output, 1, mean)
+    
+  }
+  
+  a_s_mean
+}
 
-beta_psi_output <- modelResults_MCMC$modelOutput$beta_psi_output
-beta_psi_output <- apply(beta_psi_output, 3, c)
-
-l_s_output <- modelResults_MCMC$modelOutput$l_s_output
-l_s_mean <- mean(l_s_output)
 
 x_grid <- seq(min(X_tilde[,1]), max(X_tilde[,1]), length.out = 60)
 y_grid <- seq(min(X_tilde[,2]), max(X_tilde[,2]), length.out = 60)
 siteLocations <- as.matrix(expand.grid(x_grid, y_grid))
 
-# prediction at new points
-{
-  K_staru <- K2(siteLocations, X_tilde, 1, l_s_mean)
-  inv_K_uu <- solve(K2(X_tilde, X_tilde, 1, l_s_mean) + 
-                      diag(exp(-10), nrow = nrow(X_tilde)))
-  X_coeff <- K_staru %*% inv_K_uu
-  
-  # K_biggest <- apply(K_staruKu_all[,,i], 1, function(x){
-  #   -sort(-x)[1:maxPoints]
-  # })
-  # 
-  # which_K_biggest <- apply(K_staruKu_all[,,i], 1, function(x){
-  #   order(-x)[1:maxPoints]
-  # })
-  # 
-  # X_s_index_all[,,i] <- t(which_K_biggest)
-  # for (j in 1:nrow(X_psi)) {
-  #   K_staruKu_all[j,-X_s_index_all[j,,i],i] <- 0
-  #   K_staruKu_all[j,,i] <- K_staruKu_all[j,,i] / sum(K_staruKu_all[j,,i])
-  # }
-  
-  beta_mean <- apply(beta_psi_output, 2, mean)
-  
-  a_s_star <- X_coeff %*% beta_mean[Y + seq_len(X_centers)]
-}
+predNewLoc <- predNewLocations(siteLocations, modelResults_MCMC)
+
+#
 
 npoints <- nrow(siteLocations)
 datapoly <- data.frame(
